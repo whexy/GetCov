@@ -2,10 +2,14 @@ mod args;
 mod coverage;
 mod error;
 mod execution;
+mod uncovered;
+mod report;
 
 use coverage::check_covmap;
 use error::GetCovError;
 use llvm_cov_json::CoverageReport;
+use report::print_uncovered;
+use std::fs;
 
 fn main() -> Result<(), GetCovError> {
     // enable logger
@@ -15,10 +19,13 @@ fn main() -> Result<(), GetCovError> {
     check_covmap(&options.binary)?;
 
     let coverage_run = execution::coverage_run(&options)?;
-    let coverage_report = execution::generate_coverage_report_json(&options, &coverage_run)?;
+    let coverage_json = execution::generate_coverage_report_json(&options, &coverage_run)?;
 
-    let report: CoverageReport = serde_json::from_str(&coverage_report)?;
-    let program_report = &report.data[0]; // in practice, there should be only one element in the data array
+    // save coverage report to file "report.json"
+    fs::write("report.json", &coverage_json)?;
+
+    let coverage_report: CoverageReport = serde_json::from_str(&coverage_json)?;
+    let program_report = &coverage_report.data[0]; // in practice, there should be only one element in the data array
 
     println!(
         "Branch Coverage: {} / {}, {}%",
@@ -33,6 +40,9 @@ fn main() -> Result<(), GetCovError> {
         program_report.summary.functions.count,
         program_report.summary.functions.percent
     );
+
+    let uncovered_functions = uncovered::get_uncovered(&coverage_report);
+    print_uncovered(&uncovered_functions);
 
     Ok(())
 }

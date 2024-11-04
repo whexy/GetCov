@@ -214,8 +214,6 @@ checksum = "78b3ae25bc7c8c38cec158d1f2757ee79e9b3740fbc7ccf0e59e4b08d793fa89"
 [[package]]
 name = "llvm-cov-json"
 version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d72723a91b12c80bb93c1bc67f1255ec007987eac891d25e7ff1c2427095076"
 dependencies = [
  "serde",
  "serde_json",
