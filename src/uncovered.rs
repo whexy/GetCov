@@ -78,7 +78,7 @@ fn merge_uncovered_regions(uncovered_regions: Vec<UncoveredRegion>) -> Vec<Uncov
     for region in uncovered_regions {
         regions_by_file
             .entry(region.file_path.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(region);
     }
 

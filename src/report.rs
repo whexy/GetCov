@@ -7,22 +7,45 @@ fn get_file_part(
     start_line: u64,
     start_column: u64,
     end_line: u64,
-    end_column: u64,
+    end_column: u64, // exclusive
 ) -> String {
     let file_content = fs::read_to_string(file_path).expect("Failed to read file");
     let lines = file_content.split('\n').collect::<Vec<&str>>();
-    let start_index = start_line as usize - 1;
-    let end_index = end_line as usize - 1;
+    
+    // Handle empty file case
+    if lines.is_empty() {
+        return "[!] Empty file".to_string();
+    }
+
+    // Clamp line indices to valid range
+    let start_index = (start_line as usize).saturating_sub(1).min(lines.len() - 1);
+    let end_index = (end_line as usize).saturating_sub(1).min(lines.len() - 1);
+    let mut has_error = start_index != start_line as usize - 1 || end_index != end_line as usize - 1;
 
     let mut result = String::new();
 
     for (i, line) in lines[start_index..=end_index].iter().enumerate() {
-        let start = if i == 0 { start_column as usize - 1 } else { 0 };
-        let end = if i == end_index - start_index {
-            end_column as usize - 1 // Subtract 1 since end_column is one past the actual column
+        let mut start = if i == 0 { start_column as usize - 1 } else { 0 };
+        let mut end = if i == end_index - start_index {
+            end_column as usize - 1 
         } else {
             line.len()
         };
+
+        // Clamp column indices to valid range
+        if start > line.len() {
+            start = line.len();
+            has_error = true;
+        }
+        if end > line.len() {
+            end = line.len();
+            has_error = true;
+            eprintln!("Warning: End column out of range for file: {}", file_path);
+        }
+        if end < start {
+            end = start;
+            has_error = true;
+        }
 
         if i > 0 {
             result.push('\n');
@@ -30,7 +53,11 @@ fn get_file_part(
         result.push_str(&line[start..end]);
     }
 
-    result
+    if has_error {
+        format!("[!] {}", result)
+    } else {
+        result
+    }
 }
 
 /// Pretty print the uncovered functions.
