@@ -13,6 +13,7 @@ tempfile = "3.13.0"
 thiserror = "1.0.64"
 uuid = { version = "1.11.0", features = ["v4"] }
 llvm-cov-json = { path = "libs/llvm-cov-json-rs" }
+serde = "1.0.214"
 
 [[bin]]
 name = "getcov"

@@ -1,4 +1,6 @@
-# GetCov
+# GetCovID
+
+Quickly identify uncovered code in your C project. Results will be printed as a json file containing the coverage file ID.
 
 ## Notice on License and Modifications
 

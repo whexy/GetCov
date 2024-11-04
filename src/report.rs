@@ -11,7 +11,7 @@ fn get_file_part(
 ) -> String {
     let file_content = fs::read_to_string(file_path).expect("Failed to read file");
     let lines = file_content.split('\n').collect::<Vec<&str>>();
-    
+
     // Handle empty file case
     if lines.is_empty() {
         return "[!] Empty file".to_string();
@@ -20,14 +20,15 @@ fn get_file_part(
     // Clamp line indices to valid range
     let start_index = (start_line as usize).saturating_sub(1).min(lines.len() - 1);
     let end_index = (end_line as usize).saturating_sub(1).min(lines.len() - 1);
-    let mut has_error = start_index != start_line as usize - 1 || end_index != end_line as usize - 1;
+    let mut has_error =
+        start_index != start_line as usize - 1 || end_index != end_line as usize - 1;
 
     let mut result = String::new();
 
     for (i, line) in lines[start_index..=end_index].iter().enumerate() {
         let mut start = if i == 0 { start_column as usize - 1 } else { 0 };
         let mut end = if i == end_index - start_index {
-            end_column as usize - 1 
+            end_column as usize - 1
         } else {
             line.len()
         };
@@ -73,6 +74,19 @@ pub fn print_uncovered(uncovered_functions: &Vec<PartiallyCoveredFunction>) {
     for function in uncovered_functions {
         println!("Function: {}", function.function_name);
         println!("Location: {}", function.file_path);
+
+        if let Some(whole_function) = &function.whole_function {
+            println!(
+                "{}",
+                get_file_part(
+                    &whole_function.file_path,
+                    whole_function.start_line,
+                    whole_function.start_column,
+                    whole_function.end_line,
+                    whole_function.end_column
+                )
+            );
+        }
 
         if !function.partially_covered_predicates.is_empty() {
             println!("\nPartially Covered Predicates:");
@@ -125,7 +139,7 @@ pub fn print_uncovered(uncovered_functions: &Vec<PartiallyCoveredFunction>) {
                     file_part,
                     region.file_path,
                     region.start_line,
-                    region.start_column, 
+                    region.start_column,
                     region.end_line,
                     region.end_column
                 );

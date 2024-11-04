@@ -6,7 +6,7 @@ use std::collections::HashMap;
 /// 2. Uncovered regions in each function.
 use llvm_cov_json::{Branch, CoverageReport, FunctionMetrics};
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct PartiallyCoveredPredicate {
     pub file_path: String,
     pub start_line: u64,
@@ -17,13 +17,22 @@ pub struct PartiallyCoveredPredicate {
     pub false_count: u64,
 }
 
-#[derive(Debug)]
-pub struct UncoveredRegion {
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct CodeRegion {
     pub file_path: String,
     pub start_line: u64,
     pub start_column: u64,
     pub end_line: u64,
     pub end_column: u64, // Exclusive
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct PartiallyCoveredFunction {
+    pub function_name: String,
+    pub file_path: String,
+    pub partially_covered_predicates: Vec<PartiallyCoveredPredicate>,
+    pub uncovered_regions: Vec<CodeRegion>,
+    pub whole_function: Option<CodeRegion>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -32,7 +41,7 @@ struct Position {
     column: u64,
 }
 
-impl UncoveredRegion {
+impl CodeRegion {
     fn start(&self) -> Position {
         Position {
             line: self.start_line,
@@ -48,19 +57,19 @@ impl UncoveredRegion {
     }
 }
 
-fn can_merge(a: &UncoveredRegion, b: &UncoveredRegion) -> bool {
+fn can_merge(a: &CodeRegion, b: &CodeRegion) -> bool {
     // Assuming a.start <= b.start
     // We can merge if a.end (exclusive) >= b.start
     a.end() >= b.start()
 }
 
-fn is_fully_covered(a: &UncoveredRegion, b: &UncoveredRegion) -> bool {
+fn is_fully_covered(a: &CodeRegion, b: &CodeRegion) -> bool {
     // a fully covers b if:
     // a.start <= b.start and a.end >= b.end
     a.start() <= b.start() && a.end() >= b.end()
 }
 
-fn merge_regions_in_place(a: &mut UncoveredRegion, b: &UncoveredRegion) {
+fn merge_regions_in_place(a: &mut CodeRegion, b: &CodeRegion) {
     let start_pos = a.start().min(b.start());
     let end_pos = a.end().max(b.end());
 
@@ -71,8 +80,8 @@ fn merge_regions_in_place(a: &mut UncoveredRegion, b: &UncoveredRegion) {
     // file_path remains the same
 }
 
-fn merge_uncovered_regions(uncovered_regions: Vec<UncoveredRegion>) -> Vec<UncoveredRegion> {
-    let mut regions_by_file: HashMap<String, Vec<UncoveredRegion>> = HashMap::new();
+fn merge_uncovered_regions(uncovered_regions: Vec<CodeRegion>) -> Vec<CodeRegion> {
+    let mut regions_by_file: HashMap<String, Vec<CodeRegion>> = HashMap::new();
 
     // Group regions by file path
     for region in uncovered_regions {
@@ -116,18 +125,10 @@ fn merge_uncovered_regions(uncovered_regions: Vec<UncoveredRegion>) -> Vec<Uncov
     merged_regions_all_files
 }
 
-#[derive(Debug)]
-pub struct PartiallyCoveredFunction {
-    pub function_name: String,
-    pub file_path: String,
-    pub partially_covered_predicates: Vec<PartiallyCoveredPredicate>,
-    pub uncovered_regions: Vec<UncoveredRegion>,
-}
-
 /// Checks if a function is partially covered and returns uncovered branches if any.
 /// A function is partially covered if it is called at least once and has at least one branch that is partially covered.
 /// A branch is partially covered if it has either an uncovered true or false execution count.
-fn get_partially_covered_branches(
+fn get_partially_covered_predicates(
     function: &FunctionMetrics,
 ) -> Option<Vec<PartiallyCoveredPredicate>> {
     // first we check if the function is called at least once
@@ -139,7 +140,10 @@ fn get_partially_covered_branches(
     let uncovered_branches: Vec<&Branch> = function
         .branches
         .iter()
-        .filter(|branch| branch.execution_count == 0 || branch.false_execution_count == 0)
+        .filter(|branch| {
+            (branch.execution_count == 0 && branch.false_execution_count > 0)
+                || (branch.execution_count > 0 && branch.false_execution_count == 0)
+        })
         .collect();
 
     if uncovered_branches.is_empty() {
@@ -162,13 +166,13 @@ fn get_partially_covered_branches(
     }
 }
 
-fn get_uncovered_regions(function: &FunctionMetrics) -> Vec<UncoveredRegion> {
+fn get_uncovered_regions(function: &FunctionMetrics) -> Vec<CodeRegion> {
     // if a function has partially covered predicates, it must have uncovered regions, so we can always return something
-    let uncovered_regions: Vec<UncoveredRegion> = function
+    let uncovered_regions: Vec<CodeRegion> = function
         .regions
         .iter()
         .filter(|region| region.execution_count == 0)
-        .map(|region| UncoveredRegion {
+        .map(|region| CodeRegion {
             file_path: function.filenames[region.file_id as usize].to_string(), // TODO: handle OOB crash
             start_line: region.line_start,
             start_column: region.column_start,
@@ -190,12 +194,22 @@ pub fn get_uncovered(coverage_report: &CoverageReport) -> Vec<PartiallyCoveredFu
     let mut uncovered_functions = Vec::new();
 
     for function in &coverage_report.data[0].functions {
-        if let Some(uncovered_branches) = get_partially_covered_branches(function) {
+        if let Some(uncovered_branches) = get_partially_covered_predicates(function) {
             uncovered_functions.push(PartiallyCoveredFunction {
                 function_name: function.name.to_string(),
                 file_path: function.filenames[0].to_string(), // TODO: handle multiple files
                 partially_covered_predicates: uncovered_branches,
                 uncovered_regions: get_uncovered_regions(function),
+                whole_function: function
+                    .regions
+                    .first() // yes, now we assume the first region is the whole function. Let's use this assumption until we have a better way to identify the whole function.
+                    .map(|region| CodeRegion {
+                        file_path: function.filenames[0].to_string(),
+                        start_line: region.line_start,
+                        start_column: region.column_start,
+                        end_line: region.line_end,
+                        end_column: region.column_end,
+                    }),
             });
         }
     }

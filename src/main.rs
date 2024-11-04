@@ -41,8 +41,11 @@ fn main() -> Result<(), GetCovError> {
         program_report.summary.functions.percent
     );
 
-    let uncovered_functions = uncovered::get_uncovered(&coverage_report);
+    let uncovered_functions = uncovered::get_uncovered(&coverage_report);    
     print_uncovered(&uncovered_functions);
+
+    // also, print the json representation of the uncovered_functions
+    println!("{}", serde_json::to_string_pretty(&uncovered_functions)?);
 
     Ok(())
 }
