@@ -1,6 +1,6 @@
 use crate::{args::RunningOptions, error::GetCovError};
 use std::fs;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use tempfile::TempDir;
 
 /// Struct to store coverage run information
@@ -26,6 +26,8 @@ pub fn coverage_run(options: &RunningOptions) -> Result<CoverageRun, GetCovError
         Command::new(&options.binary)
             .args(args)
             .env("LLVM_PROFILE_FILE", profraw_file.to_str().unwrap())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .spawn()?
             .wait()?;
     }

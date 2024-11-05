@@ -5,6 +5,28 @@ use clap::{Arg, Command};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[derive(Debug)]
+pub enum OutputFormat {
+    Json,
+    Text,
+}
+
+/// Program options parsed from CLI arguments.
+#[derive(Debug)]
+pub struct ProgramOptions {
+    pub running_options: RunningOptions,
+    // program settings
+    pub extract_all_functions: bool,
+    pub output_format: OutputFormat,
+}
+
+/// Struct representing the running options parsed from CLI arguments.
+#[derive(Debug)]
+pub struct RunningOptions {
+    pub binary: String,
+    pub args_list: Vec<Vec<String>>,
+}
+
 fn create_cli() -> Command {
     Command::new("getcov")
         .version("1.0")
@@ -19,6 +41,20 @@ fn create_cli() -> Command {
                 .required(false),
         )
         .arg(
+            Arg::new("all")
+                .long("all")
+                .help("Extract all functions")
+                .action(clap::ArgAction::SetTrue)
+                .required(false),
+        )
+        .arg(
+            Arg::new("text")
+                .long("text")
+                .help("Output in text format")
+                .action(clap::ArgAction::SetTrue)
+                .required(false),
+        )
+        .arg(
             Arg::new("executable")
                 .help("The command to run")
                 .required(true)
@@ -27,19 +63,12 @@ fn create_cli() -> Command {
         )
 }
 
-/// Struct representing the running options parsed from CLI arguments.
-#[derive(Debug)]
-pub struct RunningOptions {
-    pub binary: String,
-    pub args_list: Vec<Vec<String>>,
-}
-
 /// Parses the command-line arguments and constructs a `RunningOptions` instance.
 ///
 /// # Returns
 ///
 /// A `Result` containing `RunningOptions` or a `GetCovError`.
-pub fn parse_arguments() -> Result<RunningOptions, GetCovError> {
+pub fn parse_arguments() -> Result<ProgramOptions, GetCovError> {
     let matches = create_cli().get_matches();
     let (binary, args) = parse_executable(&matches)?;
 
@@ -56,14 +85,24 @@ pub fn parse_arguments() -> Result<RunningOptions, GetCovError> {
         )));
     };
 
-    if let Some(input_dir) = matches.get_one::<String>("input") {
-        create_options_from_input_dir(input_dir, &binary, &args)
+    let running_options = if let Some(input_dir) = matches.get_one::<String>("input") {
+        create_options_from_input_dir(input_dir, &binary, &args)?
     } else {
-        Ok(RunningOptions {
+        RunningOptions {
             binary,
             args_list: vec![args],
-        })
-    }
+        }
+    };
+
+    Ok(ProgramOptions {
+        running_options,
+        extract_all_functions: matches.get_flag("all"),
+        output_format: if matches.get_flag("text") {
+            OutputFormat::Text
+        } else {
+            OutputFormat::Json
+        },
+    })
 }
 
 /// Creates `RunningOptions` by reading input files from a directory.
