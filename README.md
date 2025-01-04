@@ -1,15 +1,58 @@
-# GetCovID
+# GetCov
 
 Quickly identify uncovered code in your C project. Results will be printed as a json file containing the coverage file ID.
 
-## Notice on License and Modifications
+## Usage
 
-This project contains a modified version of the [llvm-cov-json library](https://github.com/nbars/llvm-cov-json-rs). Specifically, this modification enables public access to the `Region` struct to better support the functionality of this project.
+```bash
+getcov [OPTIONS] <executable> [args]...
+```
 
-### License Notice
+## Options
 
-The original llvm-cov-json library is licensed under the AGPL-3.0-only license. In compliance with this license, all modifications made to llvm-cov-json in this repository are also licensed under AGPL-3.0-only.
+| Option                    | Description                                           |
+| ------------------------- | ----------------------------------------------------- |
+| `-i, --input <DIRECTORY>` | Sets the seed directory for batch processing          |
+| `--all`                   | Extract all functions                                 |
+| `--text`                  | Output in text format instead of JSON (default: JSON) |
 
-Due to the strong copyleft requirements of the AGPL-3.0-only license, the entire project is now distributed under the AGPL-3.0-only license as well.
+## Examples
 
-By using or contributing to this project, you agree to comply with the terms of the AGPL-3.0-only license, which includes making the source code of any derivative works publicly available under the same license.
+### Single Input
+
+```bash
+getcov -- /path/to/binary arg1 arg2
+```
+
+### Multiple Inputs from Directory
+
+```bash
+getcov -i ./inputs -- /path/to/binary arg1 @@
+```
+
+### Extract All Functions with Text Output
+
+```bash
+getcov --all --text -- /path/to/binary arg1
+```
+
+> **Note:** Use '@@' in arguments to specify where the input file path should be inserted.
+> If '@@' is not provided when using -i/--input, the file path will be appended at the end.
+
+## License Information
+
+### Modified Components
+
+This project contains a modified version of the [llvm-cov-json library](https://github.com/nbars/llvm-cov-json-rs). The modification enables public access to the `Region` struct to better support the project's functionality.
+
+### License Terms
+
+- Original llvm-cov-json library: AGPL-3.0-only
+- This project (including modifications): AGPL-3.0-only
+
+### Compliance Notice
+
+By using or contributing to this project, you agree to comply with the AGPL-3.0-only license terms, which require:
+
+- Making source code of derivative works publicly available
+- Distributing modifications under the same license
