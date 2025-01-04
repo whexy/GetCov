@@ -1,6 +1,6 @@
 use clap::ArgMatches;
 
-use crate::config::{AnalysisOptions, Config, OutputFormat, RunningOptions};
+use crate::config::{AnalysisOptions, Config, OutputFormat, RunningMode, RunningOptions};
 use crate::error::GetCovError;
 use clap::{Arg, Command};
 use std::fs;
@@ -41,6 +41,14 @@ fn create_cli() -> Command {
                 .required(false),
         )
         .arg(
+            Arg::new("profdata")
+                .long("profdata")
+                .help("Use the provided profdata file")
+                .value_name("FILE")
+                .required(false)
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
             Arg::new("executable")
                 .help("The command to run")
                 .required(true)
@@ -71,6 +79,14 @@ pub fn parse_arguments() -> Result<Config, GetCovError> {
         )));
     };
 
+    let profdata_file = matches.get_one::<String>("profdata").map(PathBuf::from);
+
+    let running_mode = if profdata_file.is_some() {
+        RunningMode::Profdata
+    } else {
+        RunningMode::Normal
+    };
+
     let running_options = if let Some(input_dir) = matches.get_one::<String>("input") {
         create_options_from_input_dir(input_dir, &binary, &args)?
     } else {
@@ -92,8 +108,10 @@ pub fn parse_arguments() -> Result<Config, GetCovError> {
     };
 
     Ok(Config {
+        running_mode,
         running_options,
         analysis_options,
+        profdata_file,
     })
 }
 

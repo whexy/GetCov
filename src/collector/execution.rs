@@ -1,47 +1,83 @@
 use crate::config::RunningOptions;
 use crate::error::GetCovError;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use tempfile::TempDir;
 use uuid::Uuid;
 
-pub struct CoverageRun {
-    profdata_file: String,
-    _temp_dir: TempDir,
+#[derive(Debug)]
+pub struct CoverageResult {
+    pub json: String,
+    pub profdata_path: PathBuf,
 }
 
-pub fn get_coverage_report_json(options: &RunningOptions) -> Result<String, GetCovError> {
-    let coverage_run = run_with_coverage(options)?;
-    generate_coverage_report_json(options, &coverage_run)
+/// Generates a coverage report in JSON format by running the binary with coverage instrumentation
+/// and processing the results.
+///
+/// # Arguments
+/// * `options` - Configuration options for running the binary
+///
+/// # Returns
+/// * `Result<String, GetCovError>` - JSON coverage report or error
+pub fn get_coverage_report_json(options: &RunningOptions) -> Result<CoverageResult, GetCovError> {
+    let profdata_path = run_with_coverage(options)?;
+    let result = generate_coverage_report_json(options, &profdata_path)?;
+    Ok(CoverageResult {
+        json: result,
+        profdata_path,
+    })
 }
 
-fn run_with_coverage(options: &RunningOptions) -> Result<CoverageRun, GetCovError> {
-    let temp_dir = TempDir::new()?;
-    let coverage_id = Uuid::new_v4().to_string();
+/// Generates a coverage report in JSON format from an existing profdata file.
+///
+/// # Arguments
+/// * `options` - Configuration options for running the binary
+/// * `profdata_file` - Path to the existing profdata file
+pub fn get_coverage_report_json_by_profdata(
+    options: &RunningOptions,
+    profdata_file: &Path,
+) -> Result<CoverageResult, GetCovError> {
+    let result = generate_coverage_report_json(options, profdata_file)?;
+    Ok(CoverageResult {
+        json: result,
+        profdata_path: profdata_file.to_path_buf(),
+    })
+}
+
+fn run_with_coverage(options: &RunningOptions) -> Result<PathBuf, GetCovError> {
+    let temp_dir = TempDir::new().map_err(GetCovError::Io)?;
+    let coverage_id = Uuid::new_v4();
     let profraw_prefix = format!("getcov_{}_", coverage_id);
-    let profraw_file = temp_dir
+
+    // Create profraw file path inside temp directory
+    let profraw_pattern = temp_dir
         .path()
         .join(format!("{}%m.profraw", profraw_prefix));
 
-    for args in options.args_list.iter() {
-        Command::new(&options.binary)
+    // Run the binary for each set of arguments
+    for args in &options.args_list {
+        let status = Command::new(&options.binary)
             .args(args)
-            .env("LLVM_PROFILE_FILE", profraw_file.to_str().unwrap())
+            .env(
+                "LLVM_PROFILE_FILE",
+                profraw_pattern.to_str().ok_or_else(|| {
+                    GetCovError::Coverage("Invalid profraw file path".to_string())
+                })?,
+            )
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()?
             .wait()?;
+
+        if !status.success() {
+            return Err(GetCovError::Coverage("Binary execution failed".to_string()));
+        }
     }
 
-    let profraw_files: Vec<_> = std::fs::read_dir(temp_dir.path())?
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| {
-            path.file_name()
-                .and_then(|os_str| os_str.to_str())
-                .map_or(false, |file_name| file_name.starts_with(&profraw_prefix))
-        })
-        .collect();
+    // Collect profraw files
+    let profraw_files: Vec<_> = collect_profraw_files(temp_dir.path(), &profraw_prefix)?;
 
+    // Verify we have exactly one profraw file
     if profraw_files.len() != 1 {
         return Err(GetCovError::Coverage(format!(
             "Expected 1 profraw file, found {}",
@@ -49,34 +85,58 @@ fn run_with_coverage(options: &RunningOptions) -> Result<CoverageRun, GetCovErro
         )));
     }
 
-    let profdata_file = temp_dir
-        .path()
-        .join(format!("getcov_{}.profdata", coverage_id));
+    let profdata_path = PathBuf::from("/tmp").join(format!("getcov_{}.profdata", coverage_id));
+    merge_profraw_to_profdata(&profraw_files[0], &profdata_path)?;
 
-    Command::new("llvm-profdata")
+    Ok(profdata_path)
+}
+
+fn collect_profraw_files(dir: &Path, prefix: &str) -> Result<Vec<PathBuf>, GetCovError> {
+    Ok(std::fs::read_dir(dir)?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.file_name()
+                .and_then(|os_str| os_str.to_str())
+                .map_or(false, |name| name.starts_with(prefix))
+        })
+        .collect())
+}
+
+fn merge_profraw_to_profdata(profraw_file: &Path, profdata_path: &Path) -> Result<(), GetCovError> {
+    let status = Command::new("llvm-profdata")
         .arg("merge")
         .arg("-sparse")
-        .arg(&profraw_files[0])
+        .arg(profraw_file)
         .arg("-o")
-        .arg(&profdata_file)
+        .arg(profdata_path)
         .spawn()?
         .wait()?;
 
-    Ok(CoverageRun {
-        profdata_file: profdata_file.to_str().unwrap().to_string(),
-        _temp_dir: temp_dir,
-    })
+    if !status.success() {
+        return Err(GetCovError::Coverage(
+            "Failed to merge profraw data".to_string(),
+        ));
+    }
+
+    Ok(())
 }
 
 fn generate_coverage_report_json(
     options: &RunningOptions,
-    coverage_run: &CoverageRun,
+    profdata_file: &Path,
 ) -> Result<String, GetCovError> {
     let output = Command::new("llvm-cov")
         .arg("export")
-        .arg(format!("--instr-profile={}", coverage_run.profdata_file))
+        .arg(format!("--instr-profile={}", profdata_file.display()))
         .arg(&options.binary)
         .output()?;
 
-    Ok(String::from_utf8(output.stdout)?)
+    if !output.status.success() {
+        return Err(GetCovError::Coverage(
+            String::from_utf8_lossy(&output.stderr).to_string(),
+        ));
+    }
+
+    String::from_utf8(output.stdout).map_err(GetCovError::from)
 }

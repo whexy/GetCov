@@ -10,11 +10,13 @@ getcov [OPTIONS] <executable> [args]...
 
 ## Options
 
-| Option                    | Description                                           |
-| ------------------------- | ----------------------------------------------------- |
-| `-i, --input <DIRECTORY>` | Sets the seed directory for batch processing          |
-| `--all`                   | Extract all functions                                 |
-| `--text`                  | Output in text format instead of JSON (default: JSON) |
+| Option                    | Description                                                     |
+| ------------------------- | --------------------------------------------------------------- |
+| `-i, --input <DIRECTORY>` | Sets the seed directory for batch processing                    |
+| `--all`                   | Extract all functions                                           |
+| `--text`                  | Output in text format instead of JSON (default: JSON)           |
+| `--hybrid`                | Output in hybrid format (JSON + Text)                           |
+| `--profdata <*.profdata>` | Instead of running the program, use the provided profdata file. |
 
 ## Examples
 
