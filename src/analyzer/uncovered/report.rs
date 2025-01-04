@@ -104,7 +104,7 @@ pub fn print_uncovered(uncovered_functions: &Vec<PartiallyCoveredFunction>) {
                     "  {}. {} ({})",
                     i + 1,
                     get_file_part(
-                        &function.file_path,
+                        &function.file_path, // it's nearly impossible that the predicate is in a different file
                         pred.start_line,
                         pred.start_column,
                         pred.end_line,
@@ -121,7 +121,7 @@ pub fn print_uncovered(uncovered_functions: &Vec<PartiallyCoveredFunction>) {
             let mut display_index = 1;
             for region in function.uncovered_regions.iter() {
                 let file_part = get_file_part(
-                    &function.file_path,
+                    &region.file_path,
                     region.start_line,
                     region.start_column,
                     region.end_line,
