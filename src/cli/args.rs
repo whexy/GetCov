@@ -1,31 +1,10 @@
 use clap::ArgMatches;
 
+use crate::config::{AnalysisOptions, Config, OutputFormat, RunningOptions};
 use crate::error::GetCovError;
 use clap::{Arg, Command};
 use std::fs;
 use std::path::{Path, PathBuf};
-
-#[derive(Debug)]
-pub enum OutputFormat {
-    Json,
-    Text,
-}
-
-/// Program options parsed from CLI arguments.
-#[derive(Debug)]
-pub struct ProgramOptions {
-    pub running_options: RunningOptions,
-    // program settings
-    pub extract_all_functions: bool,
-    pub output_format: OutputFormat,
-}
-
-/// Struct representing the running options parsed from CLI arguments.
-#[derive(Debug)]
-pub struct RunningOptions {
-    pub binary: String,
-    pub args_list: Vec<Vec<String>>,
-}
 
 fn create_cli() -> Command {
     Command::new("getcov")
@@ -63,12 +42,12 @@ fn create_cli() -> Command {
         )
 }
 
-/// Parses the command-line arguments and constructs a `RunningOptions` instance.
+/// Parses the command-line arguments and constructs a `Config` instance.
 ///
 /// # Returns
 ///
-/// A `Result` containing `RunningOptions` or a `GetCovError`.
-pub fn parse_arguments() -> Result<ProgramOptions, GetCovError> {
+/// A `Result` containing `Config` or a `GetCovError`.
+pub fn parse_arguments() -> Result<Config, GetCovError> {
     let matches = create_cli().get_matches();
     let (binary, args) = parse_executable(&matches)?;
 
@@ -94,14 +73,18 @@ pub fn parse_arguments() -> Result<ProgramOptions, GetCovError> {
         }
     };
 
-    Ok(ProgramOptions {
-        running_options,
+    let analysis_options = AnalysisOptions {
         extract_all_functions: matches.get_flag("all"),
         output_format: if matches.get_flag("text") {
             OutputFormat::Text
         } else {
             OutputFormat::Json
         },
+    };
+
+    Ok(Config {
+        running_options,
+        analysis_options,
     })
 }
 

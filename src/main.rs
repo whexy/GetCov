@@ -1,67 +1,34 @@
-mod args;
-mod coverage;
-mod error;
-mod execution;
-mod functions;
-mod report;
-mod uncovered;
-
-use coverage::check_covmap;
+use analyzer::{Analyzer, ExtractFunctionsAnalyzer, UncoveredAnalyzer};
+use collector::{check_covmap, get_coverage_report_json};
 use error::GetCovError;
 use llvm_cov_json::CoverageReport;
-use report::print_uncovered;
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-struct Coverage {
-    covered_branches: u64,
-    total_branches: u64,
-    covered_functions: u64,
-    total_functions: u64,
-}
-
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-struct Output {
-    coverage: Coverage,
-    uncovered_functions: Vec<uncovered::PartiallyCoveredFunction>,
-}
+mod analyzer;
+mod cli;
+mod collector;
+mod config;
+mod error;
 
 fn main() -> Result<(), GetCovError> {
-    // enable logger
     env_logger::init();
 
-    let options = args::parse_arguments()?;
+    let options = cli::parse_arguments()?;
     check_covmap(&options.running_options.binary)?;
 
-    let coverage_run = execution::coverage_run(&options.running_options)?;
-    let coverage_json =
-        execution::generate_coverage_report_json(&options.running_options, &coverage_run)?;
-
+    let coverage_json = get_coverage_report_json(&options.running_options)?;
     let coverage_report: CoverageReport = serde_json::from_str(&coverage_json)?;
-    let program_report = &coverage_report.data[0]; // in practice, there should be only one element in the data array
 
-    if options.extract_all_functions {
-        let all_functions = functions::get_all_functions(&coverage_report);
-        serde_json::to_writer_pretty(std::io::stdout(), &all_functions)?;
-        return Ok(());
-    }
-
-    let uncovered_functions = uncovered::get_uncovered(&coverage_report);
-    let coverage = Coverage {
-        covered_branches: program_report.summary.branches.covered,
-        total_branches: program_report.summary.branches.count,
-        covered_functions: program_report.summary.functions.covered,
-        total_functions: program_report.summary.functions.count,
+    let mut analyzer: Box<dyn Analyzer> = if options.analysis_options.extract_all_functions {
+        Box::new(ExtractFunctionsAnalyzer::new())
+    } else {
+        Box::new(UncoveredAnalyzer::new())
     };
 
-    match options.output_format {
-        args::OutputFormat::Json => {
-            let output = Output {
-                coverage,
-                uncovered_functions,
-            };
-            serde_json::to_writer_pretty(std::io::stdout(), &output)?;
-        }
-        args::OutputFormat::Text => print_uncovered(&uncovered_functions),
+    analyzer.analyze(&coverage_report)?;
+
+    match options.analysis_options.output_format {
+        config::OutputFormat::Json => analyzer.output_json()?,
+        config::OutputFormat::Text => analyzer.output_text(),
     }
 
     Ok(())

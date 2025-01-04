@@ -1,4 +1,4 @@
-use crate::uncovered::PartiallyCoveredFunction;
+use super::model::PartiallyCoveredFunction;
 use std::fs;
 
 /// Read the file and return the part of the file specified by the start and end lines and columns.

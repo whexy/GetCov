@@ -1,22 +1,22 @@
-use crate::{args::RunningOptions, error::GetCovError};
-use std::fs;
+use crate::config::RunningOptions;
+use crate::error::GetCovError;
 use std::process::{Command, Stdio};
 use tempfile::TempDir;
+use uuid::Uuid;
 
-/// Struct to store coverage run information
-#[derive(Debug)]
 pub struct CoverageRun {
-    /// Path to the profdata file generated during the run
     profdata_file: String,
-    /// Temporary directory used for storing profraw files
     _temp_dir: TempDir,
 }
 
-/// Run the binary with the given options.
-/// Coverage run will execute the binary with the given arguments and collect coverage data.
-pub fn coverage_run(options: &RunningOptions) -> Result<CoverageRun, GetCovError> {
+pub fn get_coverage_report_json(options: &RunningOptions) -> Result<String, GetCovError> {
+    let coverage_run = run_with_coverage(options)?;
+    generate_coverage_report_json(options, &coverage_run)
+}
+
+fn run_with_coverage(options: &RunningOptions) -> Result<CoverageRun, GetCovError> {
     let temp_dir = TempDir::new()?;
-    let coverage_id = uuid::Uuid::new_v4().to_string();
+    let coverage_id = Uuid::new_v4().to_string();
     let profraw_prefix = format!("getcov_{}_", coverage_id);
     let profraw_file = temp_dir
         .path()
@@ -32,8 +32,7 @@ pub fn coverage_run(options: &RunningOptions) -> Result<CoverageRun, GetCovError
             .wait()?;
     }
 
-    // after running, we need to match the prefix of the profraw file
-    let profraw_files: Vec<_> = fs::read_dir(temp_dir.path())?
+    let profraw_files: Vec<_> = std::fs::read_dir(temp_dir.path())?
         .filter_map(Result::ok)
         .map(|entry| entry.path())
         .filter(|path| {
@@ -43,7 +42,6 @@ pub fn coverage_run(options: &RunningOptions) -> Result<CoverageRun, GetCovError
         })
         .collect();
 
-    // there should be only one profraw file after filtering
     if profraw_files.len() != 1 {
         return Err(GetCovError::Coverage(format!(
             "Expected 1 profraw file, found {}",
@@ -51,16 +49,14 @@ pub fn coverage_run(options: &RunningOptions) -> Result<CoverageRun, GetCovError
         )));
     }
 
-    let the_profraw_file = &profraw_files[0];
-
-    // "merge" profraw file into a single profdata file
     let profdata_file = temp_dir
         .path()
         .join(format!("getcov_{}.profdata", coverage_id));
+
     Command::new("llvm-profdata")
         .arg("merge")
         .arg("-sparse")
-        .arg(the_profraw_file)
+        .arg(&profraw_files[0])
         .arg("-o")
         .arg(&profdata_file)
         .spawn()?
@@ -72,7 +68,7 @@ pub fn coverage_run(options: &RunningOptions) -> Result<CoverageRun, GetCovError
     })
 }
 
-pub fn generate_coverage_report_json(
+fn generate_coverage_report_json(
     options: &RunningOptions,
     coverage_run: &CoverageRun,
 ) -> Result<String, GetCovError> {
