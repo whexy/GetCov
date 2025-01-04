@@ -2,7 +2,7 @@ use super::model::PartiallyCoveredFunction;
 use std::fs;
 
 /// Read the file and return the part of the file specified by the start and end lines and columns.
-fn get_file_part(
+pub fn get_file_part(
     file_path: &str,
     start_line: u64,
     start_column: u64,

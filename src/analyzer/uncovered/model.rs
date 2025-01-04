@@ -1,10 +1,13 @@
 use std::collections::HashMap;
+use regex::Regex;
 
 /// Analysis the uncovered parts in the program.
 /// In detail, it will find out:
 /// 1. Partially covered predicates in each function. It means the predicate always outputs the same value in current coverage.
 /// 2. Uncovered regions in each function.
 use llvm_cov_json::{Branch, CoverageReport, FunctionMetrics};
+
+use crate::analyzer::uncovered::report::get_file_part;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct PartiallyCoveredPredicate {
@@ -166,6 +169,27 @@ fn get_partially_covered_predicates(
     }
 }
 
+fn is_pure_comment(region: &CodeRegion) -> bool {
+    // get the file content with get_file_part
+    let mut snippet = get_file_part(
+        &region.file_path,
+        region.start_line,
+        region.start_column,
+        region.end_line,
+        region.end_column,
+    );
+
+    // Remove block comments
+    let block_comment_re = Regex::new(r"/\*[^*]*\*+(?:[^/*][^*]*\*+)*/").unwrap();
+    snippet = block_comment_re.replace_all(&snippet, "").to_string();
+
+    // Remove line comments
+    let line_comment_re = Regex::new(r"//[^\n]*(?:\n|$)").unwrap();
+    snippet = line_comment_re.replace_all(&snippet, "").to_string();
+
+    snippet.trim().is_empty()
+}
+
 fn get_uncovered_regions(function: &FunctionMetrics) -> Vec<CodeRegion> {
     // if a function has partially covered predicates, it must have uncovered regions, so we can always return something
     let uncovered_regions: Vec<CodeRegion> = function
@@ -186,7 +210,14 @@ fn get_uncovered_regions(function: &FunctionMetrics) -> Vec<CodeRegion> {
     // 1. if two regions are adjacent, merge them into one
     // 2. if a region is fully covered by another region, remove the covered region
     // 3. repeat 1 and 2 until no more regions can be merged
-    merge_uncovered_regions(uncovered_regions)
+    let merged_uncovered_regions = merge_uncovered_regions(uncovered_regions);
+
+    // run a simple region identification to remove the regions that are purely comment
+    // this is to avoid reporting the comment regions as uncovered regions
+    merged_uncovered_regions
+        .into_iter()
+        .filter(|region| !is_pure_comment(region))
+        .collect()
 }
 
 /// Identify partially covered functions, and get the uncovered areas.

@@ -3,9 +3,13 @@
 void test_function(int x) {
     int squared = x * x;
     int cubed = squared * x;
+
+    /*
+    This is a block comment.
+    */
     
     if (x > 10) {
-        printf("Large positive: %d\n", x);
+        printf("Large positive: %d\n", x); /* this is an inline-block comment */
         if (squared > 200) {
             printf("Square is very large: %d\n", squared);
         }
@@ -21,11 +25,18 @@ void test_function(int x) {
             printf("Absolute value is big: %d\n", abs_x);
         }
     } else {
+        // this is a line comment.
         printf("Small negative or zero: %d\n", x);
         if (x == 0) {
             printf("Number is exactly zero!\n");
         }
     }
+
+    // this is a line comment.
+
+    /* this is a block comment. */
+
+    // Again, this is a line comment.
 }
 
 int main() {
