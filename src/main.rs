@@ -29,6 +29,11 @@ fn main() -> Result<(), GetCovError> {
     match options.analysis_options.output_format {
         config::OutputFormat::Json => analyzer.output_json()?,
         config::OutputFormat::Text => analyzer.output_text(),
+        config::OutputFormat::Hybrid => {
+            analyzer.output_json()?;
+            println!("\n<<<JSON_OUTPUT_END>>>\n");
+            analyzer.output_text();
+        }
     }
 
     Ok(())

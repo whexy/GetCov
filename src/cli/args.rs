@@ -34,6 +34,13 @@ fn create_cli() -> Command {
                 .required(false),
         )
         .arg(
+            Arg::new("hybrid")
+                .long("hybrid")
+                .help("Output in hybrid format")
+                .action(clap::ArgAction::SetTrue)
+                .required(false),
+        )
+        .arg(
             Arg::new("executable")
                 .help("The command to run")
                 .required(true)
@@ -77,6 +84,8 @@ pub fn parse_arguments() -> Result<Config, GetCovError> {
         extract_all_functions: matches.get_flag("all"),
         output_format: if matches.get_flag("text") {
             OutputFormat::Text
+        } else if matches.get_flag("hybrid") {
+            OutputFormat::Hybrid
         } else {
             OutputFormat::Json
         },

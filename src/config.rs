@@ -2,6 +2,7 @@
 pub enum OutputFormat {
     Json,
     Text,
+    Hybrid,
 }
 
 #[derive(Debug)]
