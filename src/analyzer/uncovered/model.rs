@@ -156,7 +156,7 @@ fn get_partially_covered_predicates(
             uncovered_branches
                 .iter()
                 .map(|branch| PartiallyCoveredPredicate {
-                    file_path: function.filenames[branch.file_id as usize].to_string(), // TODO: handle OOB crash
+                    file_path: function.filenames[branch.file_id as usize].to_string(),
                     start_line: branch.line_start,
                     start_column: branch.column_start,
                     end_line: branch.line_end,
@@ -195,9 +195,9 @@ fn get_uncovered_regions(function: &FunctionMetrics) -> Vec<CodeRegion> {
     let uncovered_regions: Vec<CodeRegion> = function
         .regions
         .iter()
-        .filter(|region| region.execution_count == 0)
+        .filter(|region| region.kind == RegionKind::Code && region.execution_count == 0)
         .map(|region| CodeRegion {
-            file_path: function.filenames[region.file_id as usize].to_string(), // TODO: handle OOB crash
+            file_path: function.filenames[region.file_id as usize].to_string(),
             start_line: region.line_start,
             start_column: region.column_start,
             end_line: region.line_end,
