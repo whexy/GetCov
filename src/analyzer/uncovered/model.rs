@@ -1,11 +1,11 @@
-use std::collections::HashMap;
 use regex::Regex;
+use std::collections::HashMap;
 
 /// Analysis the uncovered parts in the program.
 /// In detail, it will find out:
 /// 1. Partially covered predicates in each function. It means the predicate always outputs the same value in current coverage.
 /// 2. Uncovered regions in each function.
-use llvm_cov_json::{Branch, CoverageReport, FunctionMetrics};
+use llvm_cov_json::{Branch, CoverageReport, FunctionMetrics, RegionKind};
 
 use crate::analyzer::uncovered::report::get_file_part;
 
@@ -226,21 +226,25 @@ pub fn get_uncovered(coverage_report: &CoverageReport) -> Vec<PartiallyCoveredFu
 
     for function in &coverage_report.data[0].functions {
         if let Some(uncovered_branches) = get_partially_covered_predicates(function) {
+            // file path is the first code region's file path
+            let first_code_region = function.regions.iter().find(|r| r.kind == RegionKind::Code);
+            if first_code_region.is_none() {
+                continue;
+            }
+
+            let first_code_region = first_code_region.unwrap();
             uncovered_functions.push(PartiallyCoveredFunction {
                 function_name: function.name.to_string(),
-                file_path: function.filenames[0].to_string(), // TODO: handle multiple files
+                file_path: function.filenames[first_code_region.file_id as usize].to_string(),
                 partially_covered_predicates: uncovered_branches,
                 uncovered_regions: get_uncovered_regions(function),
-                whole_function: function
-                    .regions
-                    .first() // yes, now we assume the first region is the whole function. Let's use this assumption until we have a better way to identify the whole function.
-                    .map(|region| CodeRegion {
-                        file_path: function.filenames[0].to_string(),
-                        start_line: region.line_start,
-                        start_column: region.column_start,
-                        end_line: region.line_end,
-                        end_column: region.column_end,
-                    }),
+                whole_function: Some(CodeRegion {
+                    file_path: function.filenames[first_code_region.file_id as usize].to_string(),
+                    start_line: first_code_region.line_start,
+                    start_column: first_code_region.column_start,
+                    end_line: first_code_region.line_end,
+                    end_column: first_code_region.column_end,
+                }),
             });
         }
     }
