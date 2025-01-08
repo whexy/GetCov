@@ -41,7 +41,10 @@ pub fn get_file_part(
         if end > line.len() {
             end = line.len();
             has_error = true;
-            eprintln!("Warning: End column out of range for file: {}", file_path);
+            eprintln!(
+                "Warning: End column out of range for file: {}({}:{} - {}:{})",
+                file_path, start_line, start_column, end_line, end_column
+            );
         }
         if end < start {
             end = start;
@@ -55,7 +58,10 @@ pub fn get_file_part(
     }
 
     if has_error {
-        format!("[!] {}", result)
+        format!(
+            "[!] {}  // warn: try to access file {} ({}:{} - {}:{}), but some lines are out of range",
+            result, file_path, start_line, start_column, end_line, end_column
+        )
     } else {
         result
     }
