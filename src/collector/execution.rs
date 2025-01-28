@@ -58,6 +58,7 @@ fn run_with_coverage(options: &RunningOptions) -> Result<PathBuf, GetCovError> {
     for args in &options.args_list {
         let status = Command::new(&options.binary)
             .args(args)
+            .arg("-timeout=5")
             .env(
                 "LLVM_PROFILE_FILE",
                 profraw_pattern.to_str().ok_or_else(|| {
@@ -68,10 +69,6 @@ fn run_with_coverage(options: &RunningOptions) -> Result<PathBuf, GetCovError> {
             .stderr(Stdio::null())
             .spawn()?
             .wait()?;
-
-        if !status.success() {
-            return Err(GetCovError::Coverage("Binary execution failed".to_string()));
-        }
     }
 
     // Collect profraw files
