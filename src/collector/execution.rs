@@ -70,7 +70,7 @@ fn run_with_coverage(options: &RunningOptions) -> Result<PathBuf, GetCovError> {
             .stderr(Stdio::null())
             .spawn()?;
 
-        match command.wait_timeout(Duration::from_secs(5))? {
+        match command.wait_timeout(Duration::from_secs(5 * 60))? {
             Some(status) => status,
             None => {
                 let _ = command.kill(); // ignore the error anyway
