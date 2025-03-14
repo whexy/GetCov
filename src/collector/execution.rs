@@ -2,8 +2,10 @@ use crate::config::RunningOptions;
 use crate::error::GetCovError;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::Duration;
 use tempfile::TempDir;
 use uuid::Uuid;
+use wait_timeout::ChildExt;
 
 #[derive(Debug)]
 pub struct CoverageResult {
@@ -56,9 +58,8 @@ fn run_with_coverage(options: &RunningOptions) -> Result<PathBuf, GetCovError> {
 
     // Run the binary for each set of arguments
     for args in &options.args_list {
-        let status = Command::new(&options.binary)
+        let mut command = Command::new(&options.binary)
             .args(args)
-            .arg("-timeout=5")
             .env(
                 "LLVM_PROFILE_FILE",
                 profraw_pattern.to_str().ok_or_else(|| {
@@ -67,8 +68,15 @@ fn run_with_coverage(options: &RunningOptions) -> Result<PathBuf, GetCovError> {
             )
             .stdout(Stdio::null())
             .stderr(Stdio::null())
-            .spawn()?
-            .wait()?;
+            .spawn()?;
+
+        match command.wait_timeout(Duration::from_secs(5))? {
+            Some(status) => status,
+            None => {
+                let _ = command.kill(); // ignore the error anyway
+                continue;
+            }
+        };
     }
 
     // Collect profraw files

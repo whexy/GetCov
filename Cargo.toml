@@ -15,6 +15,7 @@ uuid = { version = "1.11.0", features = ["v4"] }
 llvm-cov-json = { path = "libs/llvm-cov-json-rs" }
 serde = "1.0"
 regex = "1.11"
+wait-timeout = "0.2"
 
 [dev-dependencies]
 serial_test = "3.2"
