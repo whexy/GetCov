@@ -3,6 +3,6 @@
 	"image": "mcr.microsoft.com/devcontainers/rust:1-1-bullseye",
 	"features": {
 		"ghcr.io/devcontainers-community/features/llvm:3": {},
-		"ghcr.io/mikaello/devcontainer-features/modern-shell-utils:2": {}
+		"ghcr.io/mikaello/devcontainer-features/modern-shell-utils:3": {}
 	}
 }
